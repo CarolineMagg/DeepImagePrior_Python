@@ -1,7 +1,7 @@
-# DeepImagePrior_Python
+# DeepImagePrior in Python
 Deep Image Prior (DIP) implementation in python with tensorflow/keras. <br>
 
-This repository provides a Julia implementation based on [Deep Image Prior](https://dmitryulyanov.github.io/deep_image_prior) by Ulyanov, Dmitry and Vedaldi, Andrea and Lempitsky, Victor, [paper link](https://arxiv.org/pdf/1711.10925.pdf).
+This repository provides a Python (Tensorflow/Keras) implementation based on [Deep Image Prior](https://dmitryulyanov.github.io/deep_image_prior) by Ulyanov, Dmitry and Vedaldi, Andrea and Lempitsky, Victor [paper link](https://arxiv.org/pdf/1711.10925.pdf).
 
 ## Docker & Requirements
 You can use [Docker](https://www.docker.com/) to setup your environment. For installation guide see [Install Docker](https://docs.docker.com/get-docker/). <br> 
@@ -20,6 +20,6 @@ The docker image contains:
 ### How to run a docker container:
 (Note: Change *user* to your home folder name.)
 * Run jupyter docker container: <br>
-```docker run -it --gpus all --name jupyter_notebook --rm -v /home/user/:/tf/workdir -p 8888:8888 python-tf-docker:1.00``` <br>
+``` docker run -it --gpus all --name jupyter_notebook --rm -v /home/user/:/tf/workdir -p 8888:8888 python-tf-docker:1.00 ``` <br>
 
 Recommended: modify sh files to fit your settings
