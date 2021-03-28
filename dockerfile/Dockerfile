@@ -28,19 +28,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	curl \
 	sudo \
 	libx11-xcb1 libasound2 x11-apps libice6 libsm6 libxaw7 libxft2 libxmu6 libxpm4 libxt6 x11-apps xbitmaps
-
-RUN mkdir /pch 
-COPY installer.tgz /pch/
-
-RUN cd /pch && tar --strip-components=1 -xzf /pch/installer.tgz && rm /pch/installer.tgz
-
-ENV PATH /pch/bin:$PATH
+	
+# install python packages	
+RUN pip3.6 install pandas \	
+	matplotlib \
+	scikit-image \
+	opencv-python==4.1.0.25 \
+	pydot 
 
 RUN adduser --disabled-password --gecos '' caroline
 RUN usermod -aG sudo caroline
 USER caroline
 WORKDIR /home/caroline/
-#WORKDIR /tf/
 
 RUN jupyter notebook --generate-config
 COPY jupyter_notebook_config.py /home/caroline/.jupyter/
