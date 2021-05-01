@@ -13,6 +13,10 @@ import numpy as np
 import os
 import tensorflow as tf
 
+from skimage.metrics import structural_similarity
+from skimage.metrics import peak_signal_noise_ratio
+from skimage.metrics import mean_squared_error
+
 __author__ = "c.magg"
 
 
@@ -128,6 +132,21 @@ def create_cutout(images, cut_out_region):
     for img in images:
         result.append(img[cut_out_region[1]:cut_out_region[3], cut_out_region[0]:cut_out_region[2]])
     return result
+
+
+def get_measurements(img1, img2):
+    """
+    Calculate error measurements between two images
+    :param img1: first image
+    :param img2: second image
+    :return: dict with MSE, PSNR, SSIM
+    """
+    multichannel = False
+    if len(img1.shape) == 3:
+        multichannel = True
+    return {"MSE": mean_squared_error(img1, img2),
+            "PSNR": peak_signal_noise_ratio(img1, img2),
+            "SSIM": structural_similarity(img1, img2, multichannel=multichannel)}
 
 
 

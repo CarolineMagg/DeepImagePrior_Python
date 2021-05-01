@@ -6,7 +6,7 @@
 ####################################################################
 
 import matplotlib.pyplot as plt
-from data_processing import *
+from src.utils.data_processing import *
 
 __author__ = "c.magg"
 
