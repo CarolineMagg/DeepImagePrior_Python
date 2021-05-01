@@ -2,11 +2,9 @@
 # SkipNet implementation
 ####################################################################
 
-from model_utils import *
+from src.model.model_utils import *
 
 __author__ = "c.magg"
-
-# TODO: add upsampling methods
 
 
 def skip_net(input_shape=(512, 512, 32), batch_size=1, output_size=3,
@@ -86,6 +84,8 @@ def skip_net(input_shape=(512, 512, 32), batch_size=1, output_size=3,
         # upsample
         if upsample_mode == "bilinear":
             x = tf.keras.layers.UpSampling2D(size=2, interpolation='bilinear')(x)
+        elif upsample_mode == "nearest":
+            x = tf.keras.layers.UpSampling2D(size=2, interpolation='nearest')(x)
         else:
             raise NotImplementedError("Upsampling {0} not implemented.".format(upsample_mode))
 
@@ -106,6 +106,8 @@ def skip_net(input_shape=(512, 512, 32), batch_size=1, output_size=3,
     # last upsample
     if upsample_mode == "bilinear":
         x = tf.keras.layers.UpSampling2D(size=2, interpolation='bilinear')(x)
+    elif upsample_mode == "nearest":
+        x = tf.keras.layers.UpSampling2D(size=2, interpolation='nearest')(x)
     else:
         raise NotImplementedError("Upsampling {0} not implemented.".format(upsample_mode))
 
