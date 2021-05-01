@@ -59,4 +59,22 @@ def convolutional_block(x, filters, kernel_size, strides,
     x = tf.keras.layers.BatchNormalization(momentum=0.1, epsilon=1e-05)(x)
     if act == 'leaky_relu':
         x = tf.keras.layers.LeakyReLU(alpha=0.2)(x)
+    elif act == 'relu':
+        x = tf.keras.activations.relu(x)
+    elif act == 'swish':
+        x = tf.keras.activations.swish(x)
+    elif act == 'mish':
+        x = mish(x)
+    else:
+        raise NotImplementedError("Activation method {0} is not valid.".format(act))
+
     return x
+
+
+def mish(x):
+    """
+    Mish activation method
+    :param x:
+    :return:
+    """
+    return x * tf.math.tanh(tf.math.softplus(x))
