@@ -2,11 +2,15 @@
 # DIP training loop implementation
 ####################################################################
 
+import os
 import copy
 import tensorflow as tf
-from skimage.metrics import peak_signal_noise_ratio
-from src.utils.data_plotting import plot_images
 import matplotlib.pyplot as plt
+import pandas as pd
+from skimage.metrics import peak_signal_noise_ratio
+
+from src.utils.data_plotting import plot_images
+from src.utils.data_processing import get_measurements
 
 __author__ = "c.magg"
 
@@ -158,7 +162,7 @@ class DIPTraining:
         self.exp_weight = exp_weight
         net_input_saved = copy.deepcopy(net_input)
         shape = net_input.shape
-        shape_lr =  img.shape[0], img.shape[1]
+        shape_lr = img.shape[0], img.shape[1]
         output_avg = None
 
         self.reset_history()
@@ -263,50 +267,105 @@ class DIPTraining:
         self._psnr_gt.append(psnr["psnr_gt"])
         self._psnr_smooth.append(psnr["psnr_gt_smooth"])
 
-    def save_model_checkpoint(self):
+    def save_model_checkpoint(self, debug=False):
         """
         Save model if better than before.
         Works only if history values are saved.
+        :param debug: flag for plotting information about saving model checkpoint (default: False - off)
         :return:
         """
         if self._monitor == "psnr_gt":
             if self._psnr_gt[self._epoch] > self._psnr_gt[self._epoch - 1]:
-                print("\nIteration %05d    PSNR_GT improved from %f to %f. Save model to %s" %
-                      (self._epoch, self._psnr_gt[self._epoch], self._psnr_gt[self._epoch - 1], self._checkpoint.format(epoch=self._epoch)),
-                      end="\n")
+                if debug:
+                    print("\nIteration %05d    PSNR_GT improved from %f to %f. Save model to %s" %
+                          (self._epoch, self._psnr_gt[self._epoch], self._psnr_gt[self._epoch - 1], self._checkpoint.format(epoch=self._epoch)),
+                          end="\n")
                 self._model.save_weights(self._checkpoint)
 
         elif self._monitor == "psnr_corrupted":
             if self._psnr_corrupted[self._epoch] > self._psnr_corrupted[self._epoch - 1]:
-                print("\nIteration %05d    PSNR_corrupted improved from %f to %f. Save model to %s" %
-                      (self._epoch, self._psnr_corrupted[self._epoch], self._psnr_corrupted[self._epoch - 1],
-                       self._checkpoint.format(epoch=self._epoch)),
-                      end="\n")
+                if debug:
+                    print("\nIteration %05d    PSNR_corrupted improved from %f to %f. Save model to %s" %
+                          (self._epoch, self._psnr_corrupted[self._epoch], self._psnr_corrupted[self._epoch - 1],
+                           self._checkpoint.format(epoch=self._epoch)),
+                          end="\n")
                 self._model.save_weights(self._checkpoint)
 
         else:
             if self._loss_values[self._epoch] > self._loss_values[self._epoch - 1]:
-                print("\nIteration %05d    Loss improved from %f to %f. Save model to %s" %
-                      (self._epoch, self._loss_values[self._epoch], self._loss_values[self._epoch - 1],
-                       self._checkpoint.format(epoch=self._epoch)),
-                      end="\n")
+                if debug:
+                    print("\nIteration %05d    Loss improved from %f to %f. Save model to %s" %
+                          (self._epoch, self._loss_values[self._epoch], self._loss_values[self._epoch - 1],
+                           self._checkpoint.format(epoch=self._epoch)),
+                          end="\n")
                 self._model.save_weights(self._checkpoint)
 
-    def plot_history(self):
+    def plot_history(self, store=False):
         """
         Create plots of history for loss and PSNR.
         Works only if save history was active.
+        :param store: flag if the plot should be saved.
         :return:
         """
-        plt.plot(range(len(self._loss_values)), [val.numpy() for val in self._loss_values])
-        plt.title("Loss values")
-        plt.show()
+        if self._loss_values is not None and len(self._loss_values) > 0:
+            fig, axs = plt.subplots(2)
+            axs[0].plot(range(len(self._loss_values)), [val.numpy() for val in self._loss_values])
+            axs[0].set_title("Loss values")
 
-        plt.plot(range(len(self._psnr_gt)), self._psnr_gt, "-b", label="PSNR_gt")
-        plt.plot(range(len(self._psnr_corrupted)), self._psnr_corrupted, '-r', label="PSNR_corrupted")
-        plt.plot(range(len(self._psnr_smooth)), self._psnr_smooth, '-g', label="PSNR_gt_smooth")
-        plt.legend()
-        plt.title("PSNR")
-        plt.show()
+            axs[1].plot(range(len(self._psnr_gt)), self._psnr_gt, "-b", label="PSNR_gt")
+            axs[1].plot(range(len(self._psnr_corrupted)), self._psnr_corrupted, '-r', label="PSNR_corrupted")
+            axs[1].plot(range(len(self._psnr_smooth)), self._psnr_smooth, '-g', label="PSNR_gt_smooth")
+            axs[1].legend()
+            axs[1].set_title("PSNR")
+
+            if store:
+                fn = os.path.join("/".join(self._checkpoint.split('/')[:-1]), "plot.png")
+                fig.savefig(fn)
+                print("Store plot in {0}".format(fn))
+            else:
+                plt.show()
+        else:
+            raise ValueError("No history information available.")
+
+    def evaluate(self, net_input, img_corrupted, img_gt=None, store=False):
+        """
+        Evaluate current model
+        :param net_input: network input
+        :param img_corrupted: corrupted image
+        :param img_gt: ground truth image
+        :param store: flag if the result should be stored or not
+        :return:
+        """
+        output = self._model(net_input)
+        output_np = tf.make_ndarray(tf.make_tensor_proto(output))[0]
+        output_lr = None
+
+        if output_np.shape != img_corrupted.shape:
+            shape_lr = img_corrupted.shape[0], img_corrupted.shape[1]
+            output_lr = tf.image.resize(output, shape_lr, method="lanczos3")
+
+        metrics = get_measurements(img_gt, output_np)
+        if output_lr is not None:
+            metrics_corrupted = get_measurements(img_corrupted, output_lr)
+        else:
+            metrics_corrupted = get_measurements(img_corrupted, output_np)
+
+        print("Results:")
+        print(" Ground truth:")
+        for k, v in metrics.items():
+            print("  {0}: {1} ".format(k, v))
+        print(" Corrupted data:")
+        for k, v in metrics_corrupted.items():
+            print("  {0}: {1} ".format(k, v))
+
+        if store:
+            fn = os.path.join("/".join(self._checkpoint.split('/')[:-1]), "results.csv")
+            df = pd.DataFrame(columns=["MSE", "PSNR", "SSIM"], index=["GT", "Corrupted"])
+            df.loc["GT"] = list(metrics.values())
+            df.loc["Corrupted"] = list(metrics_corrupted.values())
+            df.to_csv(fn)
+            print("Store results in {0}".format(fn))
+
+
 
 
