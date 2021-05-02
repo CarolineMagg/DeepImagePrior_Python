@@ -7,7 +7,8 @@ import copy
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import pandas as pd
-from skimage.metrics import peak_signal_noise_ratio
+import time
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
 from src.utils.data_plotting import plot_images
 from src.utils.data_processing import get_measurements
@@ -45,10 +46,14 @@ class DIPTraining:
         self._psnr_corrupted = []
         self._psnr_gt = []
         self._psnr_smooth = []
+        self._ssim_corrupted = []
+        self._ssim_gt = []
+        self._ssim_smooth = []
         self._checkpoint = "train_run/cp.ckpt"
         self._monitor = "psnr_gt"
         self._each_epoch = 100
         self._epoch = None
+        self._time = None
 
         tf.random.set_seed(seed)
 
@@ -61,6 +66,22 @@ class DIPTraining:
         self._psnr_corrupted = []
         self._psnr_gt = []
         self._psnr_smooth = []
+        self._ssim_corrupted = []
+        self._ssim_gt = []
+        self._ssim_smooth = []
+        self._time = None
+        self._epoch = None
+
+    def turn_off_all_callbacks(self):
+        """
+        Turn of all callbacks.
+        No print output will be generated. History won't be saved and available after training.
+        :return:
+        """
+        self.plot_info = False
+        self.print_info = False
+        self.save_history = False
+        self.save_model = False
 
     def set_callbacks(self, plot_info=True, print_info=True, save_history=True, save_model=True,
                       checkpoint="train_run/cp.ckpt", monitor="psnr_gt", plot_every_epoch=100):
@@ -94,7 +115,7 @@ class DIPTraining:
         :param exp_weight: smoothing factor
         :return:
         """
-
+        print("Start denoising.")
         self.num_iter = num_iter
         self.reg_noise_std = reg_noise_std
         self.exp_weight = exp_weight
@@ -107,7 +128,8 @@ class DIPTraining:
         if not isinstance(net_input, tf.Tensor):
             raise ValueError("Training input need to be tf tensors.")
 
-        for epoch in range(num_iter):
+        start = time.time()
+        for epoch in range(self.num_iter):
             self._epoch = epoch
             if self.reg_noise_std > 0:  # add again noise to input image
                 net_input = net_input_saved + (tf.random.normal(shape) * self.reg_noise_std)
@@ -123,21 +145,6 @@ class DIPTraining:
                 # Compute the loss value for corrupted image and model output
                 loss_value = self._loss(img, output)
 
-            # smoothing
-            if output_avg is None:
-                output_avg = copy.deepcopy(output)
-            else:
-                output_avg = output_avg * exp_weight + output * (1 - exp_weight)
-
-            output_np = tf.make_ndarray(tf.make_tensor_proto(output))[0]
-            output_avg_np = tf.make_ndarray(tf.make_tensor_proto(output_avg))[0] if output_avg is not None else None
-
-            # Calculate PSNR
-            psnr = self.psnr_comparison(output_np, img, output_avg=output_avg_np, img_gt=img_gt)
-
-            # Perform callbacks
-            self.perform_callbacks(loss_value, psnr, output_np, output_avg_np)
-
             # Use the gradient tape to automatically retrieve
             # the gradients of the trainable variables with respect to the loss.
             grads = tape.gradient(loss_value, self._model.trainable_weights)
@@ -145,7 +152,25 @@ class DIPTraining:
             # Run one step of gradient descent by updating the value of the variables to minimize the loss.
             self._opt.apply_gradients(zip(grads, self._model.trainable_weights))
 
-    def train_super_resolution(self, net_input, img, img_gt=None, num_iter=3000, reg_noise_std=1. / 30., exp_weight=0.99):
+            # Stop time
+            end = time.time()
+            self._time = end - start
+
+            # Smoothing
+            if output_avg is None:
+                output_avg = copy.deepcopy(output)
+            else:
+                output_avg = output_avg * exp_weight + output * (1 - exp_weight)
+
+            # Perform callbacks
+            output_np = tf.make_ndarray(tf.make_tensor_proto(output))[0]
+            output_avg_np = tf.make_ndarray(tf.make_tensor_proto(output_avg))[0] if output_avg is not None else None
+            self.perform_callbacks(loss_value, output_np, output_avg_np, img, img_gt)
+
+        print("Finish training after {0} sec.\n". format(self._time))
+
+    def train_super_resolution(self, net_input, img, img_gt=None, num_iter=3000, reg_noise_std=1. / 30.,
+                               exp_weight=0.99):
         """
         Start super resolution training
         :param net_input: net input with same shape as first model layer
@@ -156,7 +181,7 @@ class DIPTraining:
         :param exp_weight: smoothing factor
         :return:
         """
-
+        print("Start super resolution.")
         self.num_iter = num_iter
         self.reg_noise_std = reg_noise_std
         self.exp_weight = exp_weight
@@ -170,7 +195,8 @@ class DIPTraining:
         if not isinstance(net_input, tf.Tensor):
             raise ValueError("Training input need to be tf tensors.")
 
-        for epoch in range(num_iter):
+        start = time.time()
+        for epoch in range(self.num_iter):
             self._epoch = epoch
             if self.reg_noise_std > 0:  # add again noise to input image
                 net_input = net_input_saved + (tf.random.normal(shape) * self.reg_noise_std)
@@ -189,22 +215,6 @@ class DIPTraining:
                 # Compute the loss value for corrupted image and downsampled model output
                 loss_value = self._loss(img, output_lr)
 
-            # Smoothing
-            if output_avg is None:
-                output_avg = copy.deepcopy(output)
-            else:
-                output_avg = output_avg * exp_weight + output * (1 - exp_weight)
-
-            output_np = tf.make_ndarray(tf.make_tensor_proto(output))[0]
-            output_lr_np = tf.make_ndarray(tf.make_tensor_proto(output_lr))[0]
-            output_avg_np = tf.make_ndarray(tf.make_tensor_proto(output_avg))[0] if output_avg is not None else None
-
-            # Calculate PSNR
-            psnr = self.psnr_comparison(output_lr_np, img, output_for_gt=output_np, output_avg=output_avg_np, img_gt=img_gt)
-
-            # Perform callbacks
-            self.perform_callbacks(loss_value, psnr, output_np, output_avg_np)
-
             # Use the gradient tape to automatically retrieve
             # the gradients of the trainable variables with respect to the loss.
             grads = tape.gradient(loss_value, self._model.trainable_weights)
@@ -212,17 +222,46 @@ class DIPTraining:
             # Run one step of gradient descent by updating the value of the variables to minimize the loss.
             self._opt.apply_gradients(zip(grads, self._model.trainable_weights))
 
-    def perform_callbacks(self, loss_value, psnr, output_np, output_avg_np):
+            # Stop time
+            end = time.time()
+            self._time = end - start
+
+            # Smoothing
+            if output_avg is None:
+                output_avg = copy.deepcopy(output)
+            else:
+                output_avg = output_avg * exp_weight + output * (1 - exp_weight)
+
+            # Perform callbacks
+            output_np = tf.make_ndarray(tf.make_tensor_proto(output))[0]
+            output_lr_np = tf.make_ndarray(tf.make_tensor_proto(output_lr))[0]
+            output_avg_np = tf.make_ndarray(tf.make_tensor_proto(output_avg))[0] if output_avg is not None else None
+            self.perform_callbacks(loss_value, output_np, output_avg_np, img, img_gt, output_lr_np)
+
+        print("Finish training after {0} sec.\n". format(self._time))
+
+    def perform_callbacks(self, loss_value, output_np, output_avg_np, img, img_gt, output_lr_np=None):
         """
         Perform callbacks in training run
         :return:
         """
+        if self.print_info or self.save_history:
+            if output_lr_np is not None:
+                psnr = self.psnr_comparison(output_lr_np, img, output_for_gt=output_np, output_avg=output_avg_np,
+                                            img_gt=img_gt)
+            else:
+                psnr = self.psnr_comparison(output_np, img, output_avg=output_avg_np, img_gt=img_gt)
         if self.print_info:
             self.print_information(self._epoch, loss_value, psnr)
         if self.plot_info:
             self.plot_images(self._epoch, output_np, output_avg_np, self._each_epoch)
         if self.save_history:
-            self.save_history_values(loss_value, psnr)
+            if output_lr_np is not None:
+                ssim = self.ssim_comparison(output_lr_np, img, output_for_gt=output_np, output_avg=output_avg_np,
+                                            img_gt=img_gt)
+            else:
+                ssim = self.ssim_comparison(output_np, img, output_avg=output_avg_np, img_gt=img_gt)
+            self.save_history_values(loss_value, psnr, ssim)
             if self.save_model:
                 self.save_model_checkpoint()
 
@@ -245,6 +284,28 @@ class DIPTraining:
                                                           output_avg) if img_gt is not None and output_avg is not None else None}
 
     @staticmethod
+    def ssim_comparison(output, img, output_for_gt=None, output_avg=None, img_gt=None):
+        """
+        Compare networks output with corrupted image and compute SSIM
+        :param output: model output with same shape as img
+        :param img: corrupted image
+        :param output_for_gt: model output with same shape as img_gt, if None then same as output
+        :param output_avg: smooth model output with same shape as img_gt
+        :param img_gt: ground truth image
+        :return: dict with SSIM for corrupted, ground truth and smooth ground truth images
+        """
+        if output_for_gt is None:
+            output_for_gt = output
+        multichannel = False
+        if len(img.shape) == 3:
+            multichannel = True
+        return {"ssim_corrupted": structural_similarity(img, output, multichannel=multichannel),
+                "ssim_gt": structural_similarity(img_gt, output_for_gt,
+                                                 multichannel=multichannel) if img_gt is not None else None,
+                "ssim_gt_smooth": structural_similarity(img_gt, output_avg,
+                                                        multichannel=multichannel) if img_gt is not None and output_avg is not None else None}
+
+    @staticmethod
     def print_information(epoch, loss_value, psrn):
         print('Iteration %05d    Loss %f   PSNR_corrupted: %f   PSRN_gt: %f PSNR_gt_sm: %f' %
               (epoch, loss_value.numpy(), psrn["psnr_corrupted"], psrn["psnr_gt"], psrn["psnr_gt_smooth"]), '\r',
@@ -255,17 +316,37 @@ class DIPTraining:
         if epoch % each_epoch == 0:
             plot_images([output, output_avg])
 
-    def save_history_values(self, loss_value, psnr):
+    def save_history_values(self, loss_value, psnr, ssim):
         """
         Save history information
         :param loss_value: loss value
         :param psnr: dict with psnr values
+        :param ssim: dict with ssim values
         :return:
         """
         self._loss_values.append(loss_value)
         self._psnr_corrupted.append(psnr["psnr_corrupted"])
         self._psnr_gt.append(psnr["psnr_gt"])
         self._psnr_smooth.append(psnr["psnr_gt_smooth"])
+        self._ssim_corrupted.append(ssim["ssim_corrupted"])
+        self._ssim_gt.append(ssim["ssim_gt"])
+        self._ssim_smooth.append(ssim["ssim_gt_smooth"])
+        if self._epoch == self.num_iter - 1:
+            fn = os.path.join("/".join(self._checkpoint.split('/')[:-1]), "results_details.csv")
+            df = pd.DataFrame(index=["MSE", "PSNR_GT", "PSNR_Corrupted", "PSNR_Smooth",
+                                     "SSIM_GT", "SSIM_Corrupted", "SSIM_Smooth", "Time"],
+                              columns=range(len(self._loss_values)))
+            df.loc["MSE"] = [loss.numpy() for loss in self._loss_values]
+            df.loc["PSNR_GT"] = self._psnr_gt
+            df.loc["PSNR_Corrupted"] = self._psnr_corrupted
+            df.loc["PSNR_Smooth"] = self._psnr_smooth
+            df.loc["SSIM_GT"] = self._ssim_gt
+            df.loc["SSIM_Corrupted"] = self._ssim_corrupted
+            df.loc["SSIM_Smooth"] = self._ssim_smooth
+            df.loc["Time"][0] = self._time
+            df = df.transpose()
+            df.to_csv(fn)
+            print("Store detailed results in {0}.\n".format(fn))
 
     def save_model_checkpoint(self, debug=False):
         """
@@ -278,7 +359,8 @@ class DIPTraining:
             if self._psnr_gt[self._epoch] > self._psnr_gt[self._epoch - 1]:
                 if debug:
                     print("\nIteration %05d    PSNR_GT improved from %f to %f. Save model to %s" %
-                          (self._epoch, self._psnr_gt[self._epoch], self._psnr_gt[self._epoch - 1], self._checkpoint.format(epoch=self._epoch)),
+                          (self._epoch, self._psnr_gt[self._epoch], self._psnr_gt[self._epoch - 1],
+                           self._checkpoint.format(epoch=self._epoch)),
                           end="\n")
                 self._model.save_weights(self._checkpoint)
 
@@ -308,15 +390,28 @@ class DIPTraining:
         :return:
         """
         if self._loss_values is not None and len(self._loss_values) > 0:
-            fig, axs = plt.subplots(2)
+            fig, axs = plt.subplots(3, figsize=(10, 10))
             axs[0].plot(range(len(self._loss_values)), [val.numpy() for val in self._loss_values])
             axs[0].set_title("Loss values")
+            axs[0].set_xlabel("# of epochs")
+            axs[0].set_ylabel("MSE")
 
-            axs[1].plot(range(len(self._psnr_gt)), self._psnr_gt, "-b", label="PSNR_gt")
-            axs[1].plot(range(len(self._psnr_corrupted)), self._psnr_corrupted, '-r', label="PSNR_corrupted")
-            axs[1].plot(range(len(self._psnr_smooth)), self._psnr_smooth, '-g', label="PSNR_gt_smooth")
+            axs[1].plot(range(len(self._psnr_gt)), self._psnr_gt, "-b", label="GT")
+            axs[1].plot(range(len(self._psnr_corrupted)), self._psnr_corrupted, '-r', label="Corrupted")
+            axs[1].plot(range(len(self._psnr_smooth)), self._psnr_smooth, '-g', label="GT_smooth")
             axs[1].legend()
+            axs[1].set_xlabel("# of epochs")
+            axs[1].set_ylabel("PSNR")
             axs[1].set_title("PSNR")
+
+            axs[2].plot(range(len(self._ssim_gt)), self._psnr_gt, "-b", label="GT")
+            axs[2].plot(range(len(self._ssim_corrupted)), self._psnr_corrupted, '-r', label="Corrupted")
+            axs[2].plot(range(len(self._ssim_smooth)), self._psnr_smooth, '-g', label="GT_smooth")
+            axs[2].legend()
+            axs[2].set_xlabel("# of epochs")
+            axs[2].set_ylabel("SSIM")
+            axs[2].set_title("SSIM")
+            plt.tight_layout()
 
             if store:
                 fn = os.path.join("/".join(self._checkpoint.split('/')[:-1]), "plot.png")
@@ -350,22 +445,18 @@ class DIPTraining:
         else:
             metrics_corrupted = get_measurements(img_corrupted, output_np)
 
-        print("Results:")
-        print(" Ground truth:")
-        for k, v in metrics.items():
-            print("  {0}: {1} ".format(k, v))
-        print(" Corrupted data:")
-        for k, v in metrics_corrupted.items():
-            print("  {0}: {1} ".format(k, v))
-
         if store:
-            fn = os.path.join("/".join(self._checkpoint.split('/')[:-1]), "results.csv")
+            fn = os.path.join("/".join(self._checkpoint.split('/')[:-1]), "results_eval.csv")
             df = pd.DataFrame(columns=["MSE", "PSNR", "SSIM"], index=["GT", "Corrupted"])
             df.loc["GT"] = list(metrics.values())
             df.loc["Corrupted"] = list(metrics_corrupted.values())
             df.to_csv(fn)
-            print("Store results in {0}".format(fn))
-
-
-
-
+            print("Store eval results in {0}".format(fn))
+        else:
+            print("Results:")
+            print(" Ground truth:")
+            for k, v in metrics.items():
+                print("  {0}: {1} ".format(k, v))
+            print(" Corrupted data:")
+            for k, v in metrics_corrupted.items():
+                print("  {0}: {1} ".format(k, v))
