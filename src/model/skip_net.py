@@ -82,10 +82,8 @@ def skip_net(input_shape=(512, 512, 32), batch_size=1, output_size=3,
                                     pad=padding, downsample_mode=downsample_mode,
                                     act=activation)
         # upsample
-        if upsample_mode == "bilinear":
-            x = tf.keras.layers.UpSampling2D(size=2, interpolation='bilinear')(x)
-        elif upsample_mode == "nearest":
-            x = tf.keras.layers.UpSampling2D(size=2, interpolation='nearest')(x)
+        if upsample_mode == "bilinear" or upsample_mode == "nearest":
+            x = tf.keras.layers.UpSampling2D(size=2, interpolation=upsample_mode)(x)
         else:
             raise NotImplementedError("Upsampling {0} not implemented.".format(upsample_mode))
 
@@ -104,10 +102,8 @@ def skip_net(input_shape=(512, 512, 32), batch_size=1, output_size=3,
                                 act=activation)
 
     # last upsample
-    if upsample_mode == "bilinear":
-        x = tf.keras.layers.UpSampling2D(size=2, interpolation='bilinear')(x)
-    elif upsample_mode == "nearest":
-        x = tf.keras.layers.UpSampling2D(size=2, interpolation='nearest')(x)
+    if upsample_mode == "bilinear" or upsample_mode == "nearest":
+        x = tf.keras.layers.UpSampling2D(size=2, interpolation=upsample_mode)(x)
     else:
         raise NotImplementedError("Upsampling {0} not implemented.".format(upsample_mode))
 
