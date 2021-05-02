@@ -67,7 +67,26 @@ def convolutional_block(x, filters, kernel_size, strides,
         x = mish(x)
     else:
         raise NotImplementedError("Activation method {0} is not valid.".format(act))
+    return x
 
+
+def convolutional_block_unet(x, filters, kernel_size=3, strides=1, pad="same",
+                             norm_layer="batch_norm", activation="relu"):
+    x = tf.keras.layers.Conv2D(filters=filters, kernel_size=kernel_size, strides=strides, padding=pad)(x)
+    if norm_layer == "batch_norm":
+        x = tf.keras.layers.BatchNormalization(momentum=0.1, epsilon=1e-05)(x)
+    if activation == "relu":
+        x = tf.keras.activations.relu(x)
+    else:
+        raise NotImplementedError("Activation {0} not valid.".format(activation))
+
+    x = tf.keras.layers.Conv2D(filters=filters, kernel_size=kernel_size, strides=strides, padding=pad)(x)
+    if norm_layer == "batch_norm":
+        x = tf.keras.layers.BatchNormalization(momentum=0.1, epsilon=1e-05)(x)
+    if activation == "relu":
+        x = tf.keras.activations.relu(x)
+    else:
+        raise NotImplementedError("Activation {0} not valid.".format(activation))
     return x
 
 
