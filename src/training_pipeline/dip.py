@@ -51,7 +51,8 @@ class DIPTraining:
         self._ssim_smooth = []
         self._checkpoint = "train_run/cp.ckpt"
         self._monitor = "psnr_gt"
-        self._each_epoch = 100
+        self._plot_each_epoch = 100
+        self._save_each_epoch = 100
         self._epoch = None
         self._time = None
 
@@ -84,7 +85,8 @@ class DIPTraining:
         self.save_model = False
 
     def set_callbacks(self, plot_info=True, print_info=True, save_history=True, save_model=True,
-                      checkpoint="train_run/cp.ckpt", monitor="psnr_gt", plot_every_epoch=100):
+                      checkpoint="train_run/cp.ckpt", monitor="psnr_gt",
+                      plot_every_epoch=100, save_every_epoch=100):
         """
         Set callback flags for training
         :param plot_info: plot output image in a regular manner
@@ -94,6 +96,7 @@ class DIPTraining:
         :param checkpoint: name for model checkpoint file
         :param monitor: monitor measurements for model save checkpoint
         :param plot_every_epoch: number of epoch where plot information is invoked
+        :param save_every_epoch: number of epoch where save model checkpoint is invoked
         :return:
         """
         self.plot_info = plot_info
@@ -102,7 +105,8 @@ class DIPTraining:
         self.save_model = save_model
         self._checkpoint = checkpoint
         self._monitor = monitor
-        self._each_epoch = plot_every_epoch
+        self._plot_each_epoch = plot_every_epoch
+        self._save_each_epoch = save_every_epoch
 
     def train_denoising(self, net_input, img, img_gt=None, num_iter=3000, reg_noise_std=1. / 30., exp_weight=0.99):
         """
@@ -253,8 +257,8 @@ class DIPTraining:
                 psnr = self.psnr_comparison(output_np, img, output_avg=output_avg_np, img_gt=img_gt)
         if self.print_info:
             self.print_information(self._epoch, loss_value, psnr)
-        if self.plot_info:
-            self.plot_images(self._epoch, output_np, output_avg_np, self._each_epoch)
+        if self.plot_info and self._epoch % self._plot_each_epoch == 0:
+            self.plot_images(output_np, output_avg_np)
         if self.save_history:
             if output_lr_np is not None:
                 ssim = self.ssim_comparison(output_lr_np, img, output_for_gt=output_np, output_avg=output_avg_np,
@@ -262,7 +266,7 @@ class DIPTraining:
             else:
                 ssim = self.ssim_comparison(output_np, img, output_avg=output_avg_np, img_gt=img_gt)
             self.save_history_values(loss_value, psnr, ssim)
-            if self.save_model:
+            if self.save_model and self._epoch % self._save_each_epoch == 0:
                 self.save_model_checkpoint()
 
     @staticmethod
@@ -307,18 +311,30 @@ class DIPTraining:
 
     @staticmethod
     def print_information(epoch, loss_value, psrn):
+        """
+        Print information Callback
+        :param epoch: current epoch
+        :param loss_value: current loss value
+        :param psrn: current PSRN values.
+        :return:
+        """
         print('Iteration %05d    Loss %f   PSNR_corrupted: %f   PSRN_gt: %f PSNR_gt_sm: %f' %
               (epoch, loss_value.numpy(), psrn["psnr_corrupted"], psrn["psnr_gt"], psrn["psnr_gt_smooth"]), '\r',
               end='')
 
     @staticmethod
-    def plot_images(epoch, output, output_avg, each_epoch=100):
-        if epoch % each_epoch == 0:
-            plot_images([output, output_avg])
+    def plot_images(output, output_avg):
+        """
+        Plot network output images callback
+        :param output: network output
+        :param output_avg: averaged network output
+        :return:
+        """
+        plot_images([output, output_avg])
 
     def save_history_values(self, loss_value, psnr, ssim):
         """
-        Save history information
+        Save history information callback
         :param loss_value: loss value
         :param psnr: dict with psnr values
         :param ssim: dict with ssim values
@@ -350,7 +366,7 @@ class DIPTraining:
 
     def save_model_checkpoint(self, debug=False):
         """
-        Save model if better than before.
+        Save model if better than before. Callback
         Works only if history values are saved.
         :param debug: flag for plotting information about saving model checkpoint (default: False - off)
         :return:
@@ -384,7 +400,7 @@ class DIPTraining:
 
     def plot_history(self, store=False):
         """
-        Create plots of history for loss and PSNR.
+        Create plots of history for loss and PSNR. Callback
         Works only if save history was active.
         :param store: flag if the plot should be saved.
         :return:
