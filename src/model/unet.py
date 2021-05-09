@@ -10,7 +10,7 @@ __author__ = "c.magg"
 def unet(input_shape=(512, 512, 32), batch_size=1, output_size=3,
          nb_filters_down=None, nb_filters_up=None, nb_filters_skip=None,
          need_sigmoid=True, activation="relu", upsample_mode="deconv",
-         drop_out=0.5, seed=13317):
+         drop_out=None, seed=13317):
     """
     Generate Unet Variation
     :param input_shape: network input shape (default: (512,512,32))
@@ -22,7 +22,7 @@ def unet(input_shape=(512, 512, 32), batch_size=1, output_size=3,
     :param need_sigmoid: flag if sigmoid activation is needed at the end
     :param activation: activation method used in conv blocks (default: "leaky_relu")
     :param upsample_mode: mode for upsampling (default: "bilinear")
-    :param drop_out: rate of drop out, if None: no dropout
+    :param drop_out: rate of drop out, if None: no dropout (default: None)
     :param seed: random seeed init
     :return: tf keras model with SkipNet architecture
     """
