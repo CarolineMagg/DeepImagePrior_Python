@@ -7,6 +7,7 @@ import copy
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 import time
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
@@ -52,7 +53,7 @@ class DIPTraining:
         self._checkpoint = "train_run/cp.ckpt"
         self._monitor = "psnr_gt"
         self._plot_each_epoch = 100
-        self._save_each_epoch = 100
+        self._save_each_epoch = 5
         self._epoch = None
         self._time = None
 
@@ -86,7 +87,7 @@ class DIPTraining:
 
     def set_callbacks(self, plot_info=True, print_info=True, save_history=True, save_model=True,
                       checkpoint="train_run/cp.ckpt", monitor="psnr_gt",
-                      plot_every_epoch=100, save_every_epoch=100):
+                      plot_every_epoch=100, save_every_epoch=5):
         """
         Set callback flags for training
         :param plot_info: plot output image in a regular manner
@@ -171,7 +172,7 @@ class DIPTraining:
             output_avg_np = tf.make_ndarray(tf.make_tensor_proto(output_avg))[0] if output_avg is not None else None
             self.perform_callbacks(loss_value, output_np, output_avg_np, img, img_gt)
 
-        print("Finish training after {0} sec.\n". format(self._time))
+        print("Finish training after {0} sec.".format(self._time))
 
     def train_super_resolution(self, net_input, img, img_gt=None, num_iter=3000, reg_noise_std=1. / 30.,
                                exp_weight=0.99):
@@ -242,7 +243,7 @@ class DIPTraining:
             output_avg_np = tf.make_ndarray(tf.make_tensor_proto(output_avg))[0] if output_avg is not None else None
             self.perform_callbacks(loss_value, output_np, output_avg_np, img, img_gt, output_lr_np)
 
-        print("Finish training after {0} sec.\n". format(self._time))
+        print("Finish training after {0} sec.".format(self._time))
 
     def perform_callbacks(self, loss_value, output_np, output_avg_np, img, img_gt, output_lr_np=None):
         """
@@ -362,7 +363,7 @@ class DIPTraining:
             df.loc["Time"][0] = self._time
             df = df.transpose()
             df.to_csv(fn)
-            print("Store detailed results in {0}.\n".format(fn))
+            print("Store detailed results in {0}.".format(fn))
 
     def save_model_checkpoint(self, debug=False):
         """
@@ -372,7 +373,8 @@ class DIPTraining:
         :return:
         """
         if self._monitor == "psnr_gt":
-            if self._psnr_gt[self._epoch] > self._psnr_gt[self._epoch - 1]:
+            if self._epoch < self._save_each_epoch or self._psnr_gt[self._epoch] > np.max(
+                    self._psnr_gt[self._epoch - self._save_each_epoch:self._epoch - 1]):
                 if debug:
                     print("\nIteration %05d    PSNR_GT improved from %f to %f. Save model to %s" %
                           (self._epoch, self._psnr_gt[self._epoch], self._psnr_gt[self._epoch - 1],
@@ -381,7 +383,8 @@ class DIPTraining:
                 self._model.save_weights(self._checkpoint)
 
         elif self._monitor == "psnr_corrupted":
-            if self._psnr_corrupted[self._epoch] > self._psnr_corrupted[self._epoch - 1]:
+            if self._epoch < self._save_each_epoch or self._psnr_corrupted[self._epoch] > np.max(
+                    self._psnr_corrupted[self._epoch - self._save_each_epoch:self._epoch - 1]):
                 if debug:
                     print("\nIteration %05d    PSNR_corrupted improved from %f to %f. Save model to %s" %
                           (self._epoch, self._psnr_corrupted[self._epoch], self._psnr_corrupted[self._epoch - 1],
@@ -390,7 +393,8 @@ class DIPTraining:
                 self._model.save_weights(self._checkpoint)
 
         else:
-            if self._loss_values[self._epoch] > self._loss_values[self._epoch - 1]:
+            if self._epoch < self._save_each_epoch or self._loss_values[self._epoch] < np.min(
+                    self._loss_values[self._epoch - self._save_each_epoch:self._epoch - 1]):
                 if debug:
                     print("\nIteration %05d    Loss improved from %f to %f. Save model to %s" %
                           (self._epoch, self._loss_values[self._epoch], self._loss_values[self._epoch - 1],
