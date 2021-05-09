@@ -3,6 +3,7 @@
 ####################################################################
 
 from src.model.model_utils import *
+from src.model.CustomModel import CustomModel
 
 __author__ = "c.magg"
 
@@ -35,11 +36,11 @@ def skip_net(input_shape=(512, 512, 32), batch_size=1, output_size=3,
         nb_filters_down = [128, 128, 128, 128]
     if nb_filters_up is None:
         nb_filters_up = nb_filters_down
-    if len(nb_filters_up) == 1:
+    if type(nb_filters_up) == int:
         nb_filters_up = [nb_filters_up]*len(nb_filters_down)
     if nb_filters_skip is None:
         nb_filters_skip = [4]*len(nb_filters_down)
-    if len(nb_filters_skip) == 1:
+    if type(nb_filters_skip) == int:
         nb_filters_skip = [nb_filters_skip]*len(nb_filters_down)
 
     depth = len(nb_filters_down) - 1
@@ -114,4 +115,4 @@ def skip_net(input_shape=(512, 512, 32), batch_size=1, output_size=3,
     if need_sigmoid:
         x = tf.keras.activations.sigmoid(x)
 
-    return tf.keras.Model(inputs=input_layer, outputs=x)
+    return CustomModel(inputs=input_layer, outputs=x)
