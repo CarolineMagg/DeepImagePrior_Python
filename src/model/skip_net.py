@@ -12,7 +12,7 @@ def skip_net(input_shape=(512, 512, 32), batch_size=1, output_size=3,
              nb_filters_down=None, nb_filters_up=None, nb_filters_skip=None,
              need1x1_up=True, need_sigmoid=True,
              downsample_mode="stride", activation="leaky_relu", padding="reflection",
-             upsample_mode="bilinear", seed=13317):
+             upsample_mode="bilinear"):
     """
     Generate SkipNet
     :param input_shape: network input shape (default: (512,512,32))
@@ -30,7 +30,6 @@ def skip_net(input_shape=(512, 512, 32), batch_size=1, output_size=3,
     :param seed: random seeed init
     :return: tf keras model with SkipNet architecture
     """
-    tf.random.set_seed(seed)
 
     if nb_filters_down is None:
         nb_filters_down = [128, 128, 128, 128]
