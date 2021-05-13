@@ -1,5 +1,6 @@
 ####################################################################
 # DIP training loop implementation
+# Deprecated -> skip net training is implemented in CustomModel
 ####################################################################
 
 import os
