@@ -71,12 +71,12 @@ def plot_cut_outs_different_sizes(images, images_lr, cut_out_region):
     for img in images:
         toshow_single = img.copy()
         toshow_single = cv2.rectangle(toshow_single, (cut_out_region[0], cut_out_region[1]),
-                                      (cut_out_region[2], cut_out_region[3]), (0, 0, 0), 2)
+                                      (cut_out_region[2], cut_out_region[3]), (0, 0, 0), 3)
         toshow.append(toshow_single)
     for img in images_lr:
         toshow_single = img.copy()
-        toshow_single = cv2.rectangle(toshow_single, (cut_out_region[0], cut_out_region[1]),
-                                      (cut_out_region[2], cut_out_region[3]), (0, 0, 0), 2)
+        toshow_single = cv2.rectangle(toshow_single, (cut_out_region2[0], cut_out_region2[1]),
+                                      (cut_out_region2[2], cut_out_region2[3]), (0, 0, 0), 1)
         toshow.append(toshow_single)
 
     plot_images(images+images_lr, title="Images")
